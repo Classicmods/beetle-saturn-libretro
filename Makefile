@@ -231,11 +231,11 @@ else ifneq (,$(filter $(platform),ngc wii))
    FLAGS += -DHAVE_MKDIR
    STATIC_LINKING = 1
 
- #Classic (NES, SNES, C64)
+#Classic (NES, SNES, C64)
 ifeq ($(platform), classic_armv7_a7)
         TARGET := $(TARGET_NAME)_libretro.so
         fpic := -fPIC
-    	SHARED := -shared -Wl,--version-script=link.T -Wl,--no-undefined -fPIC
+        SHARED := -shared -Wl,--version-script=link.T -Wl,--no-undefined -fPIC
         CFLAGS += -Ofast \
         -flto=4 -fwhole-program -fuse-linker-plugin \
         -fdata-sections -ffunction-sections -Wl,--gc-sections \
@@ -248,19 +248,19 @@ ifeq ($(platform), classic_armv7_a7)
         CPPFLAGS += $(CFLAGS)
         ASFLAGS += $(CFLAGS)
         HAVE_NEON = 1
-		CPUFLAGS += -D__arm__
-		CPUFLAGS += -D__NEON_OPT
-		HAVE_NEON = 1
         ARCH = arm
-        GLES = 1
+        ifeq ($(HAVE_OPENGL),1)
         GL_LIB := -lGLESv2
+        endif
+        FLAGS += $(PTHREAD_FLAGS) -DHAVE_MKDIR
+        FLAGS += -marm -mtune=cortex-a35 -mfpu=neon-fp-armv8 -mfloat-abi=hard
         ifeq ($(shell echo `$(CC) -dumpversion` "< 4.9" | bc -l), 1)
           CFLAGS += -march=armv7-a
         else
           CFLAGS += -march=armv7ve
           # If gcc is 5.0 or later
           ifeq ($(shell echo `$(CC) -dumpversion` ">= 5" | bc -l), 1)
-            LDFLAGS += -static-libgcc -static-libstdc++
+            LDFLAGS += -static-libgcc -static-libstdc++ -lpthread
           endif
         endif
 endif
@@ -269,7 +269,7 @@ endif
 ifeq ($(platform), classic_armv8_a35)
         TARGET := $(TARGET_NAME)_libretro.so
         fpic := -fPIC
-    	SHARED := -shared -Wl,--version-script=$(ROOT_DIR)/link.T  -Wl,--no-undefined -fPIC
+        SHARED := -shared -Wl,--version-script=link.T -Wl,--no-undefined -fPIC
         CFLAGS += -Ofast \
         -flto=4 -fwhole-program -fuse-linker-plugin \
         -fdata-sections -ffunction-sections -Wl,--gc-sections \
@@ -282,22 +282,22 @@ ifeq ($(platform), classic_armv8_a35)
         CPPFLAGS += $(CFLAGS)
         ASFLAGS += $(CFLAGS)
         HAVE_NEON = 1
-		CPUFLAGS += -D__arm__
-		CPUFLAGS += -D__NEON_OPT
-		HAVE_NEON = 1
         ARCH = arm
-        GLES = 1
+        ifeq ($(HAVE_OPENGL),1)
         GL_LIB := -lGLESv2
+        endif
+        FLAGS += $(PTHREAD_FLAGS) -DHAVE_MKDIR
+        FLAGS += -marm -mtune=cortex-a35 -mfpu=neon-fp-armv8 -mfloat-abi=hard
         ifeq ($(shell echo `$(CC) -dumpversion` "< 4.9" | bc -l), 1)
-		CFLAGS += -march=armv8-a
-		else
-		CFLAGS += -march=armv8-a
+                CFLAGS += -march=armv8-a
+                else
+                CFLAGS += -march=armv8-a
           # If gcc is 5.0 or later
           ifeq ($(shell echo `$(CC) -dumpversion` ">= 5" | bc -l), 1)
-            LDFLAGS += -static-libgcc -static-libstdc++
+            LDFLAGS += -static-libgcc -static-libstdc++ -lpthread
           endif
         endif
-endif  
+endif
 
 # GCW0
 else ifeq ($(platform), gcw0)
