@@ -1,7 +1,7 @@
 /* Copyright  (C) 2010-2018 The RetroArch team
  *
  * ---------------------------------------------------------------------------------------
- * The following license statement only applies to this file (posix_string.h).
+ * The following license statement only applies to this file (memalign.c).
  * ---------------------------------------------------------------------------------------
  *
  * Permission is hereby granted, free of charge,
@@ -20,45 +20,44 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef __LIBRETRO_SDK_COMPAT_POSIX_STRING_H
-#define __LIBRETRO_SDK_COMPAT_POSIX_STRING_H
+#include <stdint.h>
+#include <stdlib.h>
 
-#include <retro_common_api.h>
+#include <memalign.h>
 
-#ifdef _MSC_VER
-#include <compat/msvc.h>
+void *memalign_alloc(size_t boundary, size_t size)
+{
+   void **place   = NULL;
+   uintptr_t addr = 0;
+   void *ptr      = (void*)malloc(boundary + size + sizeof(uintptr_t));
+   if (!ptr)
+      return NULL;
+
+   addr           = ((uintptr_t)ptr + sizeof(uintptr_t) + boundary)
+      & ~(boundary - 1);
+   place          = (void**)addr;
+   place[-1]      = ptr;
+
+   return (void*)addr;
+}
+
+void memalign_free(void *ptr)
+{
+   void **p = NULL;
+   if (!ptr)
+      return;
+
+   p = (void**)ptr;
+   free(p[-1]);
+}
+
+void *memalign_alloc_aligned(size_t size)
+{
+#if defined(__x86_64__) || defined(__LP64) || defined(__IA64__) || defined(_M_X64) || defined(_M_X64) || defined(_WIN64)
+   return memalign_alloc(64, size);
+#elif defined(__i386__) || defined(__i486__) || defined(__i686__) || defined(GEKKO) || defined(_M_IX86)
+   return memalign_alloc(32, size);
+#else
+   return memalign_alloc(32, size);
 #endif
-
-#if defined(PS2)
-#include <compat_ctype.h>
-#endif
-
-RETRO_BEGIN_DECLS
-
-#ifdef _WIN32
-#undef strtok_r
-#define strtok_r(str, delim, saveptr) retro_strtok_r__(str, delim, saveptr)
-
-char *strtok_r(char *str, const char *delim, char **saveptr);
-#endif
-
-#ifdef _MSC_VER
-#undef strcasecmp
-#undef strdup
-#define strcasecmp(a, b) retro_strcasecmp__(a, b)
-#define strdup(orig)     retro_strdup__(orig)
-int strcasecmp(const char *a, const char *b);
-char *strdup(const char *orig);
-
-/* isblank is available since MSVC 2013 */
-#if _MSC_VER < 1800
-#undef isblank
-#define isblank(c)       retro_isblank__(c)
-int isblank(int c);
-#endif
-
-#endif
-
-RETRO_END_DECLS
-
-#endif
+}

@@ -4,6 +4,7 @@ HAVE_RUST = 0
 HAVE_OPENGL = 0
 HAVE_JIT = 0
 HAVE_CHD = 1
+HAVE_CDROM = 0
 
 IS_64BIT = 1
 
@@ -19,15 +20,15 @@ filter_out2 = $(call filter_out1,$(call filter_out1,$1))
 
 ifeq ($(platform),)
    platform = unix
-   ifeq ($(shell uname -a),)
+   ifeq ($(shell uname -s),)
       platform = win
-   else ifneq ($(findstring Darwin,$(shell uname -a)),)
+   else ifneq ($(findstring Darwin,$(shell uname -s)),)
       platform = osx
       arch = intel
       ifeq ($(shell uname -p),powerpc)
          arch = ppc
       endif
-   else ifneq ($(findstring MINGW,$(shell uname -a)),)
+   else ifneq ($(findstring MINGW,$(shell uname -s)),)
       platform = win
    endif
 else ifneq (,$(findstring armv,$(platform)))
@@ -35,7 +36,7 @@ else ifneq (,$(findstring armv,$(platform)))
 endif
 
 ifneq ($(platform), osx)
-   ifeq ($(findstring Haiku,$(shell uname -a)),)
+   ifeq ($(findstring Haiku,$(shell uname -s)),)
       PTHREAD_FLAGS = -pthread
    endif
 endif
@@ -85,6 +86,7 @@ ifneq (,$(findstring unix,$(platform)))
          GL_LIB := -lGL
       endif
    endif
+	HAVE_CDROM = 1
 
 # OS X
 else ifeq ($(platform), osx)
@@ -119,8 +121,13 @@ else ifneq (,$(findstring ios,$(platform)))
    ifeq ($(HAVE_OPENGL),1)
       GL_LIB := -framework OpenGLES
    endif
-   CC = cc -arch armv7 -isysroot $(IOSSDK)
-   CXX = c++ -arch armv7 -isysroot $(IOSSDK)
+   ifeq ($(platform), ios-arm64)
+     CC = cc -arch arm64 -isysroot $(IOSSDK)
+     CXX = c++ -arch arm64 -isysroot $(IOSSDK)
+   else
+     CC = cc -arch armv7 -isysroot $(IOSSDK)
+     CXX = c++ -arch armv7 -isysroot $(IOSSDK)
+   endif
    IPHONEMINVER :=
    ifeq ($(platform),$(filter $(platform),ios9 ios-arm64))
       IPHONEMINVER = -miphoneos-version-min=8.0
@@ -131,6 +138,16 @@ else ifneq (,$(findstring ios,$(platform)))
    FLAGS += $(IPHONEMINVER)
    CC += $(IPHONEMINVER)
    CXX += $(IPHONEMINVER)
+
+# tvOS
+else ifeq ($(platform), tvos-arm64)
+   TARGET := $(TARGET_NAME)_libretro_tvos.dylib
+   fpic := -fPIC
+   SHARED := -dynamiclib
+
+ifeq ($(IOSSDK),)
+   IOSSDK := $(shell xcodebuild -version -sdk appletvos Path)
+endif
 
 # QNX
 else ifeq ($(platform), qnx)
@@ -489,8 +506,8 @@ else ifneq (,$(findstring windows_msvc2017,$(platform)))
 # Windows
 else
    TARGET := $(TARGET_NAME)_libretro.dll
-   CC = gcc
-   CXX = g++
+   CC ?= gcc
+   CXX ?= g++
    IS_X86 = 1
    SHARED := -shared -Wl,--no-undefined -Wl,--version-script=link.T
    LDFLAGS += -static-libgcc -static-libstdc++ -lwinmm
@@ -498,6 +515,7 @@ else
    ifeq ($(HAVE_OPENGL),1)
       GL_LIB := -lopengl32
    endif
+	HAVE_CDROM = 1
 
 endif
 

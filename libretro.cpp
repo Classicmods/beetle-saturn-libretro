@@ -11,6 +11,7 @@
 #include <rthreads/rthreads.h>
 #include <string/stdstring.h>
 #include "libretro_cbs.h"
+#include "libretro_core_options.h"
 #include "libretro_settings.h"
 #include "input.h"
 #include "disc.h"
@@ -20,6 +21,7 @@
 #include <mednafen/hash/sha256.h>
 #include "mednafen/hash/md5.h"
 #include "mednafen/ss/ss.h"
+
 static INLINE bool DBG_NeedCPUHooks(void) { return false; } // <-- replaces debug.inc
 
 #include <ctype.h>
@@ -30,8 +32,8 @@ static INLINE bool DBG_NeedCPUHooks(void) { return false; } // <-- replaces debu
 #include <zlib.h>
 
 #define MEDNAFEN_CORE_NAME                   "Beetle Saturn"
-#define MEDNAFEN_CORE_VERSION                "v1.22.1"
-#define MEDNAFEN_CORE_VERSION_NUMERIC        0x00102201
+#define MEDNAFEN_CORE_VERSION                "v1.22.2"
+#define MEDNAFEN_CORE_VERSION_NUMERIC        0x00102202
 #define MEDNAFEN_CORE_EXTENSIONS             "cue|ccd|chd|toc|m3u"
 #define MEDNAFEN_CORE_TIMING_FPS             59.82
 #define MEDNAFEN_CORE_GEOMETRY_BASE_W        320
@@ -78,6 +80,8 @@ char retro_cd_base_name[4096];
 #else
    static char retro_slash = '/';
 #endif
+
+static bool libretro_supports_bitmasks = false;
 
 extern MDFNGI EmulatedSS;
 MDFNGI *MDFNGameInfo = NULL;
@@ -836,7 +840,7 @@ static sscpu_timestamp_t MidSync(const sscpu_timestamp_t timestamp)
 
     input_poll_cb();
 
-    input_update( input_state_cb );
+    input_update(libretro_supports_bitmasks, input_state_cb );
 
     UpdateSMPCInput(timestamp);
 
@@ -1672,9 +1676,8 @@ static void alloc_surface() {
   uint32_t width  = MEDNAFEN_CORE_GEOMETRY_MAX_W;
   uint32_t height = MEDNAFEN_CORE_GEOMETRY_MAX_H;
 
-  if (surf != NULL) {
+  if (surf != NULL)
     delete surf;
-  }
 
   surf = new MDFN_Surface(NULL, width, height, width, pix_fmt);
 }
@@ -1745,6 +1748,9 @@ void retro_init(void)
    setting_last_scanline = 239;
    setting_initial_scanline_pal = 0;
    setting_last_scanline_pal = 287;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_INPUT_BITMASKS, NULL))
+      libretro_supports_bitmasks = true;
 
    check_system_specs();
 }
@@ -1972,6 +1978,19 @@ static void check_variables(bool startup)
          setting_gun_crosshair = SETTING_GUN_CROSSHAIR_DOT;
       }
    }
+
+   var.key = "beetle_saturn_virtuagun_input";
+   var.value = NULL;
+
+   if ( environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value )
+   {
+      if ( !strcmp(var.value, "Touchscreen") ) {
+         setting_gun_input = SETTING_GUN_INPUT_POINTER;
+      } else {
+         setting_gun_input = SETTING_GUN_INPUT_LIGHTGUN;
+      }
+   }
+
 }
 
 static bool MDFNI_LoadGame( const char *name )
@@ -2103,7 +2122,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
    snprintf(tocbasepath, sizeof(tocbasepath), "%s%c%s.toc", retro_cd_base_directory, retro_slash, retro_cd_base_name);
 
-   if (filestream_exists(tocbasepath))
+   if (!strstr(tocbasepath, "cdrom://") && filestream_exists(tocbasepath))
       snprintf(retro_cd_path, sizeof(retro_cd_path), "%s", tocbasepath);
    else
       snprintf(retro_cd_path, sizeof(retro_cd_path), "%s", info->path);
@@ -2189,7 +2208,7 @@ void retro_run(void)
 
    input_poll_cb();
 
-   input_update( input_state_cb );
+   input_update(libretro_supports_bitmasks, input_state_cb );
 
    static int32 rects[MEDNAFEN_CORE_GEOMETRY_MAX_H];
    rects[0] = ~0;
@@ -2316,6 +2335,8 @@ void retro_deinit(void)
          MEDNAFEN_CORE_NAME, (double)audio_frames / video_frames);
    log_cb(RETRO_LOG_INFO, "[%s]: Estimated FPS: %.5f\n",
          MEDNAFEN_CORE_NAME, (double)video_frames * 44100 / audio_frames);
+
+   libretro_supports_bitmasks = false;
 }
 
 unsigned retro_get_region(void)
@@ -2336,29 +2357,7 @@ void retro_set_environment( retro_environment_t cb )
    struct retro_vfs_interface_info vfs_iface_info;
    environ_cb = cb;
 
-   static const struct retro_variable vars[] = {
-      { "beetle_saturn_region", "System Region; Auto Detect|Japan|North America|Europe|South Korea|Asia (NTSC)|Asia (PAL)|Brazil|Latin America" },
-      { "beetle_saturn_cart", "Cartridge; Auto Detect|None|Backup Memory|Extended RAM (1MB)|Extended RAM (4MB)|The King of Fighters '95|Ultraman: Hikari no Kyojin Densetsu" },
-      { "beetle_saturn_multitap_port1", "6Player Adaptor on Port 1; disabled|enabled" },
-      { "beetle_saturn_multitap_port2", "6Player Adaptor on Port 2; disabled|enabled" },
-      { "beetle_saturn_analog_stick_deadzone", "Analog Stick Deadzone; 15%|20%|25%|30%|0%|5%|10%"},
-      { "beetle_saturn_trigger_deadzone", "Trigger Deadzone; 15%|20%|25%|30%|0%|5%|10%"},
-      { "beetle_saturn_mouse_sensitivity", "Mouse Sensitivity; 100%|105%|110%|115%|120%|125%|130%|135%|140%|145%|150%|155%|160%|165%|170%|175%|180%|185%|190%|195%|200%|5%|10%|15%|20%|25%|30%|35%|40%|45%|50%|55%|60%|65%|70%|75%|80%|85%|90%|95%" },
-      { "beetle_saturn_virtuagun_crosshair", "Gun Crosshair; Cross|Dot|Off" },
-      { "beetle_saturn_cdimagecache", "CD Image Cache (restart); disabled|enabled" },
-      { "beetle_saturn_midsync", "Mid-frame Input Synchronization; disabled|enabled" },
-      { "beetle_saturn_autortc", "Automatically set RTC on game load; enabled|disabled" },
-      { "beetle_saturn_autortc_lang", "BIOS language; english|german|french|spanish|italian|japanese" },
-      { "beetle_saturn_horizontal_overscan", "Horizontal Overscan Mask; 0|2|4|6|8|10|12|14|16|18|20|22|24|26|28|30|32|34|36|38|40|42|44|46|48|50|52|54|56|58|60" },
-      { "beetle_saturn_initial_scanline", "Initial scanline; 0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40" },
-      { "beetle_saturn_last_scanline", "Last scanline; 239|210|211|212|213|214|215|216|217|218|219|220|221|222|223|224|225|226|227|228|229|230|231|232|233|234|235|236|237|238" },
-      { "beetle_saturn_initial_scanline_pal", "Initial scanline PAL; 16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|51|52|53|54|55|56|57|58|59|60|0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15" },
-      { "beetle_saturn_last_scanline_pal", "Last scanline PAL; 271|272|273|274|275|276|277|278|279|280|281|282|283|284|285|286|287|230|231|232|233|234|235|236|237|238|239|240|241|242|243|244|245|246|247|248|249|250|251|252|253|254|255|256|257|258|259|260|261|262|263|264|265|266|267|268|269|270" },
-      { "beetle_saturn_horizontal_blend", "Enable Horizontal Blend(blur); disabled|enabled" },
-      { NULL, NULL },
-   };
-
-   cb(RETRO_ENVIRONMENT_SET_VARIABLES, (void*)vars);
+   libretro_set_core_options(environ_cb);
 
    vfs_iface_info.required_interface_version = 1;
    vfs_iface_info.iface                      = NULL;
@@ -2437,10 +2436,6 @@ bool retro_serialize(void *data, size_t size)
    st.initial_malloc = 0;
 
    ret               = MDFNSS_SaveSM(&st, MEDNAFEN_CORE_VERSION_NUMERIC, NULL, NULL, NULL);
-
-   /* there are still some errors with the save states, the size seems to change on some games for now just log when this happens */
-   if (st.len != size)
-      log_cb(RETRO_LOG_WARN, "warning, save state size has changed\n");
 
    memcpy(data,st.data,size);
    free(st.data);
@@ -2545,18 +2540,20 @@ void MDFND_DispMessage(unsigned char *str)
 
 void MDFN_DispMessage(const char *format, ...)
 {
-   char *str = new char[4096];
-   struct retro_message msg;
    va_list ap;
-   va_start(ap,format);
+   struct retro_message msg;
    const char *strc = NULL;
+   char *str        = (char*)malloc(4096 * sizeof(char));
+
+   va_start(ap,format);
 
    vsnprintf(str, 4096, format, ap);
    va_end(ap);
-   strc = str;
+   strc       = str;
 
    msg.frames = 180;
-   msg.msg = strc;
+   msg.msg    = strc;
 
    environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
+   free(str);
 }

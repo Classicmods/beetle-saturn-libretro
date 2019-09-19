@@ -1,7 +1,7 @@
 /* Copyright  (C) 2010-2018 The RetroArch team
  *
  * ---------------------------------------------------------------------------------------
- * The following license statement only applies to this file (posix_string.h).
+ * The following license statement only applies to this file (memalign.h).
  * ---------------------------------------------------------------------------------------
  *
  * Permission is hereby granted, free of charge,
@@ -20,44 +20,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef __LIBRETRO_SDK_COMPAT_POSIX_STRING_H
-#define __LIBRETRO_SDK_COMPAT_POSIX_STRING_H
+#ifndef _LIBRETRO_MEMALIGN_H
+#define _LIBRETRO_MEMALIGN_H
+
+#include <stddef.h>
 
 #include <retro_common_api.h>
 
-#ifdef _MSC_VER
-#include <compat/msvc.h>
-#endif
-
-#if defined(PS2)
-#include <compat_ctype.h>
-#endif
-
 RETRO_BEGIN_DECLS
 
-#ifdef _WIN32
-#undef strtok_r
-#define strtok_r(str, delim, saveptr) retro_strtok_r__(str, delim, saveptr)
+void *memalign_alloc(size_t boundary, size_t size);
 
-char *strtok_r(char *str, const char *delim, char **saveptr);
-#endif
+void *memalign_alloc_aligned(size_t size);
 
-#ifdef _MSC_VER
-#undef strcasecmp
-#undef strdup
-#define strcasecmp(a, b) retro_strcasecmp__(a, b)
-#define strdup(orig)     retro_strdup__(orig)
-int strcasecmp(const char *a, const char *b);
-char *strdup(const char *orig);
-
-/* isblank is available since MSVC 2013 */
-#if _MSC_VER < 1800
-#undef isblank
-#define isblank(c)       retro_isblank__(c)
-int isblank(int c);
-#endif
-
-#endif
+void memalign_free(void *ptr);
 
 RETRO_END_DECLS
 
